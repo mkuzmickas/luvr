@@ -1,5 +1,5 @@
-import HomeScreen from '@/screens/HomeScreen';
+import StoryReaderScreen from '@/screens/StoryReaderScreen';
 
 export default function Index() {
-  return <HomeScreen />;
+  return <StoryReaderScreen />;
 }
