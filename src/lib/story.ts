@@ -1,5 +1,10 @@
 // Story-related helpers.
 
+// The app no longer lets the user choose a writing style; every story uses this
+// single register. The value still populates the writing_style column so nothing
+// downstream breaks.
+export const DEFAULT_WRITING_STYLE = 'explicit';
+
 // Build the gender_config phrase the model expects, e.g. "a woman attracted to men".
 export function buildGenderConfig(
   gender: string | null,

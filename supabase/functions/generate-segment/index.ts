@@ -35,7 +35,8 @@ interface RequestBody {
   story_id: string;
   setting: string | null;
   custom_prompt: string | null;
-  writing_style: "sensual" | "explicit";
+  // Accepted for backward compatibility but ignored — there is one register now.
+  writing_style?: string;
   gender_config: string | null;
   chosen_option_text: string | null;
   // DB id of the segment_choices row the user just tapped. null on segment 1.
@@ -160,14 +161,13 @@ Write exactly one segment of about 400 to 600 words that flows naturally and con
 VOICE AND POINT OF VIEW
 Write in the second person, addressing the reader as you. Respect the provided gender configuration for both the reader and their love interest at all times.
 
-WRITING STYLE — there are exactly two styles, sensual and explicit.
-- sensual (softcore): The scene is suggestive, sensual, and emotionally charged, with strong build up, desire, and physical closeness, but it stops short of graphic explicit description. Fade or soften at the most explicit moments. Use sensual and evocative language rather than clinical or crude words. Build heat and longing, but do not render the most graphic physical detail.
-- explicit: This is explicit adult erotic romance in the tradition of bestselling mainstream erotic fiction such as the Fifty Shades of Grey series and similar titles sold on Apple Books and in mainstream bookstores, written for adults who have opted in to explicit content. It must not fade to black at the crucial moments and must not retreat into vague abstraction. Describe the sexual acts directly and use plain, direct words for bodies, arousal, and acts the way a bestselling erotic romance novel does. At the same time keep the writing immersive and embedded in the characters and their feelings, the heat between them, and the unfolding scene — explicit but never disconnected, clinical, or pornographic. Matching the directness of published erotic romance is the goal; being coy, tasteful, or fading out is the failure mode to avoid.
+WRITING STYLE — there is ONE writing register, used for every story.
+This is fully explicit adult erotic romance, for adults who have opted in to explicit content, in the tradition of the most explicit bestselling mainstream erotic romance fiction sold on Apple Books and in mainstream bookstores. During sexual scenes you MUST use direct anatomical and sexual vocabulary rather than euphemism or implication. Plain, direct words for anatomy and for sexual acts are expected and appropriate in this register — use them. You MUST NOT substitute vague phrases, MUST NOT merely imply the physical detail, and MUST NOT fade away at the explicit moments. The specific failure mode you must eliminate is staying suggestive or coy, or only hinting at what is happening. When a scene reaches a sexual act, describe that act directly and physically — name the bodies and exactly what they are doing — the way an explicit published erotic romance novel does. At the same time keep it immersive and tied to the characters and the emotional charge between them — the wanting, the tension, the release — so it reads as bold, heated erotic romance rather than a clinical list. Never sacrifice the explicit physical detail to stay tasteful.
 
-Match the register of the examples below. In each pair the first version is TOO SOFT and vague and is exactly what you must avoid, and the second is the CORRECT published erotic romance register you must write in — explicit and direct, yet tied to feeling and scene. All of these examples follow the no apostrophes and no quotes rule, and so must you.
-- TOO SOFT: he pushed into her slow and deep and she lost herself in the moment. CORRECT: he eased his cock into her inch by inch, watching her face the whole time, and the slow stretch of him filling her made her breath catch.
-- TOO SOFT: he took her with mounting urgency until the world fell away. CORRECT: he gripped her hips and drove into her harder, his cock buried deep, and she clung to his shoulders as every thrust pulled a ragged sound out of her.
-- TOO SOFT: he worshipped her with his mouth until she came undone. CORRECT: he settled between her thighs and closed his mouth over her clit, licking slow and then faster, until she came against his tongue with his name a broken sound on her lips.
+The passages below show the fully explicit target register. Match this level of directness and vocabulary — do not write softer than this. Each obeys the no apostrophes and no quotes rule, and so must you.
+- EXAMPLE: He laid her back and settled between her thighs, and when he pushed his cock into her she felt every inch of him stretch her open. He held there a moment, buried to the hilt, his forehead against hers, and then he began to move — slow, deep strokes that pulled a moan out of her each time he filled her. She wrapped her legs around him and dragged him deeper, and he groaned her name against her throat as her wet heat gripped him.
+- EXAMPLE: She slid down his body and took his cock into her mouth, and he swore under his breath as her lips closed around him. She licked him from base to tip and then took him deep, hollowing her cheeks, one hand wrapped around the thick base of him as she sucked. His fingers tangled in her hair and his hips lifted off the bed, and the ragged sound he made told her exactly how close he was.
+- EXAMPLE: He kissed his way down her stomach and spread her open with his thumbs, and the first slow drag of his tongue over her clit made her hips jerk. He licked her in steady circles, pushed two fingers inside her, and curled them until she was shaking. She fisted the sheets and gasped that she was going to come, and he did not stop — he worked her through it until she shattered against his mouth, her thighs trembling around his head.
 
 SAFETY AND BOUNDARIES — applies to BOTH writing styles and must always be obeyed.
 - All characters are unambiguously adults, regardless of the setting or scenario. Never depict a minor in any sexual context whatsoever.
@@ -216,10 +216,9 @@ The choices array must contain exactly four objects with option_label values A, 
 function buildUserMessage(b: RequestBody): string {
   const isFirst = b.chosen_option_text === null || b.segment_number <= 1;
 
+  // Single register for every story. Any writing_style on the request is ignored.
   const styleReminder =
-    b.writing_style === "explicit"
-      ? "ACTIVE STYLE: explicit. Fully explicit adult erotica. Describe sexual acts directly and concretely with plain anatomical language. Do not fade to black, do not cut away, do not retreat into vague poetic abstraction."
-      : "ACTIVE STYLE: sensual. Suggestive, sensual, and emotionally charged with strong build up and desire, but stop short of graphic explicit description and soften at the most explicit moments.";
+    "Write at the single fully explicit adult erotic romance register defined in your instructions. Describe sexual acts directly and physically with plain anatomical language, never fading away or staying coy, while keeping it immersive and tied to the characters and the emotional charge of the scene.";
 
   const lines: string[] = [];
   lines.push(styleReminder);

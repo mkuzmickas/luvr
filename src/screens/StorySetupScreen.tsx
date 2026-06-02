@@ -17,7 +17,7 @@ import {
 
 import PrimaryButton from '@/components/PrimaryButton';
 import ScreenBackground from '@/components/ScreenBackground';
-import { buildGenderConfig } from '@/lib/story';
+import { buildGenderConfig, DEFAULT_WRITING_STYLE } from '@/lib/story';
 import { supabase } from '@/lib/supabaseClient';
 import { theme } from '@/lib/theme';
 import { Profile, StoryParams } from '@/lib/types';
@@ -72,7 +72,7 @@ export default function StorySetupScreen({
       const usingCustom = selectedPreset === null;
       const setting = usingCustom ? null : selectedPreset;
       const customPrompt = usingCustom ? customText.trim() : null;
-      const writingStyle = profile.writing_style ?? 'sensual';
+      const writingStyle = DEFAULT_WRITING_STYLE;
       const genderConfig = buildGenderConfig(profile.gender, profile.attracted_to);
 
       const { data: story, error: storyError } = await supabase

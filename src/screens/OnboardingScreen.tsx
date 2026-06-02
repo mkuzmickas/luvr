@@ -17,26 +17,14 @@ import {
 
 import PrimaryButton from '@/components/PrimaryButton';
 import ScreenBackground from '@/components/ScreenBackground';
+import { DEFAULT_WRITING_STYLE } from '@/lib/story';
 import { supabase } from '@/lib/supabaseClient';
 import { theme } from '@/lib/theme';
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 
 const GENDER_OPTIONS = ['Man', 'Woman', 'Non-binary'];
 const ATTRACTED_OPTIONS = ['Women', 'Men', 'Both', 'Trans women', 'Trans men'];
-const WRITING_OPTIONS = [
-  {
-    value: 'sensual',
-    label: 'Sensual',
-    example:
-      'his mouth found the curve of her neck and the rest of the world went quiet',
-  },
-  {
-    value: 'explicit',
-    label: 'Explicit',
-    example: 'he guided his cock into her and filled her in one slow stroke',
-  },
-];
 
 export default function OnboardingScreen({
   startStep,
@@ -59,7 +47,6 @@ export default function OnboardingScreen({
   const [displayName, setDisplayName] = useState('');
   const [gender, setGender] = useState<string | null>(null);
   const [attractedTo, setAttractedTo] = useState<string | null>(null);
-  const [writingStyle, setWritingStyle] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -115,7 +102,7 @@ export default function OnboardingScreen({
           display_name: displayName.trim(),
           gender,
           attracted_to: attractedTo,
-          writing_style: writingStyle,
+          writing_style: DEFAULT_WRITING_STYLE,
           onboarding_complete: true,
         })
         .eq('id', uid);
@@ -146,8 +133,6 @@ export default function OnboardingScreen({
       ? gender !== null
       : step === 3
       ? attractedTo !== null
-      : step === 4
-      ? writingStyle !== null
       : true;
 
   return (
@@ -236,7 +221,7 @@ export default function OnboardingScreen({
                   ))}
                 </View>
               </View>
-            ) : step === 3 ? (
+            ) : (
               <View style={styles.block}>
                 <Text style={styles.prompt}>Who are you drawn to?</Text>
                 <View style={styles.options}>
@@ -246,21 +231,6 @@ export default function OnboardingScreen({
                       label={o}
                       selected={attractedTo === o}
                       onPress={() => setAttractedTo(o)}
-                    />
-                  ))}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.block}>
-                <Text style={styles.prompt}>Choose your style</Text>
-                <View style={styles.options}>
-                  {WRITING_OPTIONS.map((o) => (
-                    <Option
-                      key={o.value}
-                      label={o.label}
-                      example={o.example}
-                      selected={writingStyle === o.value}
-                      onPress={() => setWritingStyle(o.value)}
                     />
                   ))}
                 </View>
