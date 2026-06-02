@@ -1,5 +1,5 @@
-import StoryReaderScreen from '@/screens/StoryReaderScreen';
+import AppRoot from '@/screens/AppRoot';
 
 export default function Index() {
-  return <StoryReaderScreen />;
+  return <AppRoot />;
 }

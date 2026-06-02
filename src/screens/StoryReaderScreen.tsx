@@ -1,25 +1,24 @@
 // LUVR — story reader.
-// Polished visual layer over the interactive-story loop. All fetch logic,
-// state management, error handling, and Supabase calls are unchanged from the
-// working version — this is purely a visual + component refactor.
+// Reads the signed-in user's profile (writing style + gender config) from props
+// and runs the interactive-story loop. Authentication is now handled by
+// onboarding, so this screen no longer has a dev login.
 
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import LoadingCards from '@/components/LoadingCards';
 import PrimaryButton from '@/components/PrimaryButton';
 import ScreenBackground from '@/components/ScreenBackground';
-import InsightsScreen from '@/screens/InsightsScreen';
 import { supabase } from '@/lib/supabaseClient';
 import { theme } from '@/lib/theme';
+import { Profile } from '@/lib/types';
+import InsightsScreen from '@/screens/InsightsScreen';
 
 const EDGE_FUNCTION_URL =
   'https://fjkgyydtzazabmrkopyl.supabase.co/functions/v1/generate-segment';
 
-// Fixed story config for this end-to-end test.
+// The story-setup screen does not exist yet, so the setting stays fixed for now.
 const SETTING = 'Hotel Night';
-const WRITING_STYLE = 'spicy';
-const GENDER_CONFIG = 'a woman attracted to men';
 
 type Choice = {
   id: string;
@@ -27,12 +26,37 @@ type Choice = {
   option_text: string;
 };
 
-export default function StoryReaderScreen() {
-  // --- auth state ---
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [userId, setUserId] = useState<string | null>(null);
-  const [authMessage, setAuthMessage] = useState('');
+// Build the gender_config phrase the model expects, e.g. "a woman attracted to men".
+function buildGenderConfig(gender: string | null, attractedTo: string | null): string {
+  const g =
+    gender === 'Man'
+      ? 'a man'
+      : gender === 'Woman'
+      ? 'a woman'
+      : gender === 'Non-binary'
+      ? 'a non-binary person'
+      : 'a person';
+  const attractedMap: Record<string, string> = {
+    Women: 'women',
+    Men: 'men',
+    Both: 'both men and women',
+    'Trans women': 'trans women',
+    'Trans men': 'trans men',
+  };
+  const a = attractedTo ? attractedMap[attractedTo] ?? attractedTo.toLowerCase() : 'others';
+  return `${g} attracted to ${a}`;
+}
+
+export default function StoryReaderScreen({
+  profile,
+  onSignOut,
+}: {
+  profile: Profile;
+  onSignOut: () => void;
+}) {
+  const userId = profile.id;
+  const writingStyle = (profile.writing_style as 'sensual' | 'explicit') ?? 'sensual';
+  const genderConfig = buildGenderConfig(profile.gender, profile.attracted_to);
 
   // --- story state ---
   const [storyId, setStoryId] = useState<string | null>(null);
@@ -43,45 +67,6 @@ export default function StoryReaderScreen() {
   const [error, setError] = useState('');
   // TEMP: until real navigation exists, toggle the Insights screen.
   const [showInsights, setShowInsights] = useState(false);
-
-  // Track the current signed-in user.
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUserId(data.session?.user?.id ?? null);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id ?? null);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
-
-  // --- auth handlers ---
-  async function handleSignIn() {
-    setAuthMessage('Signing in...');
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) setAuthMessage('Sign in error: ' + error.message);
-    else setAuthMessage('Signed in as ' + (data.user?.id ?? 'unknown'));
-  }
-
-  async function handleSignUp() {
-    setAuthMessage('Signing up...');
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) setAuthMessage('Sign up error: ' + error.message);
-    else
-      setAuthMessage(
-        'Signed up as ' +
-          (data.user?.id ?? 'unknown') +
-          ' (if email confirmation is on, confirm then sign in)',
-      );
-  }
-
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    setAuthMessage('Signed out.');
-  }
 
   // --- edge function call ---
   async function callEdge(payload: Record<string, unknown>) {
@@ -116,10 +101,6 @@ export default function StoryReaderScreen() {
   // --- start a new story ---
   async function startNewStory() {
     setError('');
-    if (!userId) {
-      setError('Not signed in.');
-      return;
-    }
     setLoading(true);
     try {
       // reset story display
@@ -132,8 +113,8 @@ export default function StoryReaderScreen() {
         .insert({
           user_id: userId,
           setting: SETTING,
-          writing_style: WRITING_STYLE,
-          gender_config: GENDER_CONFIG,
+          writing_style: writingStyle,
+          gender_config: genderConfig,
           status: 'active',
         })
         .select()
@@ -149,8 +130,8 @@ export default function StoryReaderScreen() {
         story_id: story.id,
         setting: SETTING,
         custom_prompt: null,
-        writing_style: WRITING_STYLE,
-        gender_config: GENDER_CONFIG,
+        writing_style: writingStyle,
+        gender_config: genderConfig,
         chosen_option_text: null,
         chosen_choice_id: null,
         previous_segments_summary: '',
@@ -170,7 +151,7 @@ export default function StoryReaderScreen() {
   // --- pick a choice -> generate the next segment ---
   async function chooseOption(choice: Choice) {
     setError('');
-    if (!userId || !storyId) {
+    if (!storyId) {
       setError('No active story.');
       return;
     }
@@ -185,8 +166,8 @@ export default function StoryReaderScreen() {
         story_id: storyId,
         setting: SETTING,
         custom_prompt: null,
-        writing_style: WRITING_STYLE,
-        gender_config: GENDER_CONFIG,
+        writing_style: writingStyle,
+        gender_config: genderConfig,
         chosen_option_text: choice.option_text,
         chosen_choice_id: choice.id,
         previous_segments_summary: summary,
@@ -204,74 +185,30 @@ export default function StoryReaderScreen() {
   }
 
   // --- render ---
-  // TEMP navigation: show Insights instead of the reader when toggled.
   if (showInsights) {
     return <InsightsScreen onBack={() => setShowInsights(false)} />;
   }
 
   return (
     <ScreenBackground>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.column}>
-          {/* TEMP dev login — intentionally minimal and tucked away. */}
-          <View style={styles.devLogin}>
-            <Text style={styles.devLabel}>
-              dev login (temporary) ·{' '}
-              {userId ? 'signed in: ' + userId : 'not signed in'}
+          {/* top bar: sign out + temp insights link */}
+          <View style={styles.topBar}>
+            <Text style={styles.topLink} onPress={onSignOut}>
+              sign out
             </Text>
-            <View style={styles.devRow}>
-              <TextInput
-                placeholder="email"
-                placeholderTextColor={theme.colors.secondaryText}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                value={email}
-                onChangeText={setEmail}
-                style={styles.devInput}
-              />
-              <TextInput
-                placeholder="password"
-                placeholderTextColor={theme.colors.secondaryText}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-                style={styles.devInput}
-              />
-            </View>
-            <View style={styles.devRow}>
-              <Text style={styles.devAction} onPress={handleSignIn}>
-                sign in
-              </Text>
-              <Text style={styles.devAction} onPress={handleSignUp}>
-                sign up
-              </Text>
-              {userId ? (
-                <Text style={styles.devAction} onPress={handleSignOut}>
-                  sign out
-                </Text>
-              ) : null}
-            </View>
-            {authMessage ? <Text style={styles.devMessage}>{authMessage}</Text> : null}
+            <Text style={styles.topLink} onPress={() => setShowInsights(true)}>
+              view insights ›
+            </Text>
           </View>
 
-          {/* TEMP link to Insights (until real navigation exists) */}
-          <Text style={styles.insightsLink} onPress={() => setShowInsights(true)}>
-            view insights ›
-          </Text>
-
           {/* Start story */}
-          {userId ? (
-            segments.length === 0 && !loading ? (
-              <View style={styles.startWrap}>
-                <PrimaryButton title="Start New Story" onPress={startNewStory} />
-              </View>
-            ) : null
-          ) : (
-            <Text style={styles.hint}>Sign in to start a story.</Text>
-          )}
+          {segments.length === 0 && !loading ? (
+            <View style={styles.startWrap}>
+              <PrimaryButton title="Start New Story" onPress={startNewStory} />
+            </View>
+          ) : null}
 
           {/* Errors */}
           {error ? (
@@ -331,54 +268,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  // dev login
-  devLogin: {
-    marginBottom: 20,
-    gap: 6,
-  },
-  devLabel: {
-    color: theme.colors.secondaryText,
-    fontSize: 11,
-  },
-  devRow: {
+  topBar: {
     flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  devInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    color: theme.colors.primaryText,
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
-    fontSize: 12,
-  },
-  devAction: {
+  topLink: {
     color: theme.colors.tealAccent,
-    fontSize: 12,
-    paddingVertical: 2,
-  },
-  devMessage: {
-    color: theme.colors.secondaryText,
-    fontSize: 11,
-  },
-  insightsLink: {
-    color: theme.colors.brightTeal,
     fontSize: 13,
     letterSpacing: 1,
-    marginBottom: 16,
   },
 
   startWrap: {
     marginVertical: 24,
-  },
-  hint: {
-    color: theme.colors.secondaryText,
-    fontSize: 14,
-    marginVertical: 16,
   },
 
   errorBox: {
