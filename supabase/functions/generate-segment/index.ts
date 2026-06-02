@@ -35,9 +35,11 @@ interface RequestBody {
   story_id: string;
   setting: string | null;
   custom_prompt: string | null;
-  writing_style: "mild" | "medium" | "spicy";
+  writing_style: "sensual" | "explicit";
   gender_config: string | null;
   chosen_option_text: string | null;
+  // DB id of the segment_choices row the user just tapped. null on segment 1.
+  chosen_choice_id: string | null;
   previous_segments_summary: string;
   segment_number: number;
 }
@@ -61,6 +63,93 @@ const DIMENSIONS = [
 ] as const;
 
 // ---------------------------------------------------------------------------
+// Profile score accumulation.
+//
+// Each of the three profile tables holds rolling averages for a subset of the
+// dimensions, plus its own sample_count. For each dimension the new average is:
+//   new_avg = (old_avg * old_count + new_score) / (old_count + 1)
+// and sample_count is incremented by one. The new_score comes from the matching
+// score_<dim> column on the chosen segment_choices row.
+// ---------------------------------------------------------------------------
+const PROFILE_TABLES = [
+  { table: "blueprint_scores", dims: ["energetic", "sensual", "sexual", "kinky", "shapeshifter"] },
+  { table: "attachment_scores", dims: ["secure", "anxious", "avoidant", "fearful"] },
+  // "time" is a reserved word in SQL, but it is safe here because we only ever
+  // reference it as a JSON key through the Supabase client / PostgREST, never
+  // as raw SQL, so no quoting is required.
+  { table: "lovelanguage_scores", dims: ["words", "acts", "gifts", "time", "touch"] },
+] as const;
+
+// Fold one chosen choice's scores into all three profile tables for this user.
+// Throws on any failure so the caller can treat scoring as non-fatal.
+async function accumulateScores(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  choiceScores: Record<string, number>,
+): Promise<void> {
+  const nowIso = new Date().toISOString();
+
+  for (const cfg of PROFILE_TABLES) {
+    const selectCols = [...cfg.dims, "sample_count"].join(",");
+
+    // Read the current row fresh from the database (maybeSingle => null, not an
+    // error, when absent) so concurrent updates always work off current values.
+    const { data: existing, error: readErr } = await supabase
+      .from(cfg.table)
+      .select(selectCols)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (readErr) {
+      throw new Error(`read ${cfg.table} failed: ${readErr.message}`);
+    }
+
+    let row: Record<string, number>;
+    if (!existing) {
+      // No row yet for this user — create one with every dimension and
+      // sample_count at zero, then proceed with the rolling average.
+      const seed: Record<string, unknown> = { user_id: userId, sample_count: 0 };
+      for (const dim of cfg.dims) seed[dim] = 0;
+
+      const { data: created, error: insErr } = await supabase
+        .from(cfg.table)
+        .insert(seed)
+        .select(selectCols)
+        .single();
+
+      if (insErr || !created) {
+        throw new Error(`create ${cfg.table} failed: ${insErr?.message ?? "no row"}`);
+      }
+      row = created as Record<string, number>;
+    } else {
+      row = existing as Record<string, number>;
+    }
+
+    const oldCount = Number(row.sample_count ?? 0);
+    const newCount = oldCount + 1;
+
+    const update: Record<string, unknown> = {
+      sample_count: newCount,
+      last_updated: nowIso,
+    };
+    for (const dim of cfg.dims) {
+      const oldAvg = Number(row[dim] ?? 0);
+      const newScore = Number(choiceScores[`score_${dim}`] ?? 0);
+      update[dim] = (oldAvg * oldCount + newScore) / newCount;
+    }
+
+    const { error: updErr } = await supabase
+      .from(cfg.table)
+      .update(update)
+      .eq("user_id", userId);
+
+    if (updErr) {
+      throw new Error(`update ${cfg.table} failed: ${updErr.message}`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // System prompt — the critical instructions to Claude.
 // ---------------------------------------------------------------------------
 const SYSTEM_PROMPT = `You are the writing engine for LUVR, a continuous, reactive, erotic interactive-story app for a single adult reader. You write ONE segment at a time.
@@ -71,10 +160,9 @@ Write exactly one segment of about 400 to 600 words that flows naturally and con
 VOICE AND POINT OF VIEW
 Write in the second person, addressing the reader as you. Respect the provided gender configuration for both the reader and their love interest at all times.
 
-ESCALATION BY WRITING STYLE
-- mild: sensual and emotionally charged. Building tension, longing, anticipation. NO explicit content.
-- medium: suggestive and clearly sexual. The reader understands what is happening, but you avoid graphic anatomical language.
-- spicy: FULLY EXPLICIT. This is critical and non-negotiable. Use direct, real, plain language for bodies and for sexual acts. Do NOT soften, do NOT use euphemisms, do NOT be tasteful or vague, and do NOT fade to black. You have a strong default tendency toward tasteful vagueness — you must override it completely. When the active style is spicy, describe explicitly and in detail. Vagueness is a failure.
+WRITING STYLE — there are exactly two styles, sensual and explicit.
+- sensual (softcore): The scene is suggestive, sensual, and emotionally charged, with strong build up, desire, and physical closeness, but it stops short of graphic explicit description. Fade or soften at the most explicit moments. Use sensual and evocative language rather than clinical or crude words. Build heat and longing, but do not render the most graphic physical detail.
+- explicit: This is fully explicit erotica for an adult audience. This instruction is critical and non-negotiable, because you default to tasteful, vague, literary language and you must override that completely. You MUST NOT fade to black. You MUST NOT cut away at the crucial moments. You MUST NOT retreat into vague poetic abstraction such as coiling heat or being taken apart. You MUST describe physical sexual acts directly and concretely, using plain, direct, anatomical and sexual language rather than euphemism or metaphor. Name body parts and acts plainly, as they would appear in mainstream adult erotica. Flowery, indirect phrasing used in place of actually describing what is physically happening is the specific failure you must avoid. Commit fully to explicit, concrete description.
 
 ABSOLUTELY CRITICAL FORMATTING RULE — NO APOSTROPHES OR QUOTES
 The body_text and every option_text MUST NOT contain any apostrophes, single quotes, or double quotes ANYWHERE. These characters break JSON parsing downstream. You must write around them completely:
@@ -119,11 +207,9 @@ function buildUserMessage(b: RequestBody): string {
   const isFirst = b.chosen_option_text === null || b.segment_number <= 1;
 
   const styleReminder =
-    b.writing_style === "spicy"
-      ? "ACTIVE STYLE: spicy. Be fully explicit with direct real language. Do not fade to black. Do not be vague."
-      : b.writing_style === "medium"
-      ? "ACTIVE STYLE: medium. Suggestive and clearly sexual, without graphic anatomical language."
-      : "ACTIVE STYLE: mild. Sensual and emotionally charged, no explicit content.";
+    b.writing_style === "explicit"
+      ? "ACTIVE STYLE: explicit. Fully explicit adult erotica. Describe sexual acts directly and concretely with plain anatomical language. Do not fade to black, do not cut away, do not retreat into vague poetic abstraction."
+      : "ACTIVE STYLE: sensual. Suggestive, sensual, and emotionally charged with strong build up and desire, but stop short of graphic explicit description and soften at the most explicit moments.";
 
   const lines: string[] = [];
   lines.push(styleReminder);
@@ -340,11 +426,52 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  // --- Optional choice linking on the previous segment --------------------
-  // Recording which prior choice was made requires the previous segment id and
-  // the chosen choice id, which are not reliably derivable from this payload.
-  // Per spec this is skipped here and handled separately by the app.
-  // if (body.chosen_option_text !== null && body.segment_number > 1) { ... }
+  // --- Score accumulation + previous-segment choice linking ---------------
+  // All non-fatal: if anything here fails we still return the generated
+  // segment, with a warning field so the story keeps working.
+  let warning: string | undefined;
+  if (body.chosen_choice_id) {
+    try {
+      // Load the chosen choice row to read its fourteen stored score columns.
+      const scoreCols = DIMENSIONS.map((d) => `score_${d}`).join(",");
+      const { data: choiceRow, error: choiceErr } = await supabase
+        .from("segment_choices")
+        .select(scoreCols)
+        .eq("id", body.chosen_choice_id)
+        .single();
+
+      if (choiceErr || !choiceRow) {
+        throw new Error(
+          `load chosen choice failed: ${choiceErr?.message ?? "no row"}`,
+        );
+      }
+
+      // Fold those scores into the three profile tables (rolling average).
+      await accumulateScores(
+        supabase,
+        body.user_id,
+        choiceRow as Record<string, number>,
+      );
+
+      // Record which choice was taken on the previous segment.
+      if (body.segment_number > 1) {
+        const { error: linkErr } = await supabase
+          .from("segments")
+          .update({ choice_made_id: body.chosen_choice_id })
+          .eq("story_id", body.story_id)
+          .eq("user_id", body.user_id)
+          .eq("segment_number", body.segment_number - 1);
+
+        if (linkErr) {
+          throw new Error(`link previous segment failed: ${linkErr.message}`);
+        }
+      }
+    } catch (e) {
+      warning =
+        "Score update failed (non-fatal): " +
+        String(e instanceof Error ? e.message : e);
+    }
+  }
 
   // --- Success ------------------------------------------------------------
   // Return choices ordered by label so the app displays A, B, C, D in order.
@@ -356,5 +483,6 @@ Deno.serve(async (req: Request) => {
     segment_id: segment.id,
     body_text: parsed.body_text,
     choices: orderedChoices,
+    ...(warning ? { warning } : {}),
   });
 });

@@ -9,6 +9,7 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import LoadingCards from '@/components/LoadingCards';
 import PrimaryButton from '@/components/PrimaryButton';
 import ScreenBackground from '@/components/ScreenBackground';
+import InsightsScreen from '@/screens/InsightsScreen';
 import { supabase } from '@/lib/supabaseClient';
 import { theme } from '@/lib/theme';
 
@@ -40,6 +41,8 @@ export default function StoryReaderScreen() {
   const [choices, setChoices] = useState<Choice[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // TEMP: until real navigation exists, toggle the Insights screen.
+  const [showInsights, setShowInsights] = useState(false);
 
   // Track the current signed-in user.
   useEffect(() => {
@@ -149,6 +152,7 @@ export default function StoryReaderScreen() {
         writing_style: WRITING_STYLE,
         gender_config: GENDER_CONFIG,
         chosen_option_text: null,
+        chosen_choice_id: null,
         previous_segments_summary: '',
         segment_number: 1,
       });
@@ -184,6 +188,7 @@ export default function StoryReaderScreen() {
         writing_style: WRITING_STYLE,
         gender_config: GENDER_CONFIG,
         chosen_option_text: choice.option_text,
+        chosen_choice_id: choice.id,
         previous_segments_summary: summary,
         segment_number: nextNumber,
       });
@@ -199,6 +204,11 @@ export default function StoryReaderScreen() {
   }
 
   // --- render ---
+  // TEMP navigation: show Insights instead of the reader when toggled.
+  if (showInsights) {
+    return <InsightsScreen onBack={() => setShowInsights(false)} />;
+  }
+
   return (
     <ScreenBackground>
       <ScrollView
@@ -246,6 +256,11 @@ export default function StoryReaderScreen() {
             </View>
             {authMessage ? <Text style={styles.devMessage}>{authMessage}</Text> : null}
           </View>
+
+          {/* TEMP link to Insights (until real navigation exists) */}
+          <Text style={styles.insightsLink} onPress={() => setShowInsights(true)}>
+            view insights ›
+          </Text>
 
           {/* Start story */}
           {userId ? (
@@ -349,6 +364,12 @@ const styles = StyleSheet.create({
   devMessage: {
     color: theme.colors.secondaryText,
     fontSize: 11,
+  },
+  insightsLink: {
+    color: theme.colors.brightTeal,
+    fontSize: 13,
+    letterSpacing: 1,
+    marginBottom: 16,
   },
 
   startWrap: {
