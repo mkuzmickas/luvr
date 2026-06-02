@@ -1,24 +1,18 @@
 // LUVR — story reader.
-// Reads the signed-in user's profile (writing style + gender config) from props
-// and runs the interactive-story loop. Authentication is now handled by
-// onboarding, so this screen no longer has a dev login.
+// Receives an already-created story (from the setup screen) and its parameters.
+// On load it immediately generates segment one; there is no Start button here.
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import LoadingCards from '@/components/LoadingCards';
 import PrimaryButton from '@/components/PrimaryButton';
 import ScreenBackground from '@/components/ScreenBackground';
-import { supabase } from '@/lib/supabaseClient';
 import { theme } from '@/lib/theme';
-import { Profile } from '@/lib/types';
-import InsightsScreen from '@/screens/InsightsScreen';
+import { StoryParams } from '@/lib/types';
 
 const EDGE_FUNCTION_URL =
   'https://fjkgyydtzazabmrkopyl.supabase.co/functions/v1/generate-segment';
-
-// The story-setup screen does not exist yet, so the setting stays fixed for now.
-const SETTING = 'Hotel Night';
 
 type Choice = {
   id: string;
@@ -26,47 +20,22 @@ type Choice = {
   option_text: string;
 };
 
-// Build the gender_config phrase the model expects, e.g. "a woman attracted to men".
-function buildGenderConfig(gender: string | null, attractedTo: string | null): string {
-  const g =
-    gender === 'Man'
-      ? 'a man'
-      : gender === 'Woman'
-      ? 'a woman'
-      : gender === 'Non-binary'
-      ? 'a non-binary person'
-      : 'a person';
-  const attractedMap: Record<string, string> = {
-    Women: 'women',
-    Men: 'men',
-    Both: 'both men and women',
-    'Trans women': 'trans women',
-    'Trans men': 'trans men',
-  };
-  const a = attractedTo ? attractedMap[attractedTo] ?? attractedTo.toLowerCase() : 'others';
-  return `${g} attracted to ${a}`;
-}
-
 export default function StoryReaderScreen({
-  profile,
+  story,
+  onExit,
   onSignOut,
+  onViewInsights,
 }: {
-  profile: Profile;
+  story: StoryParams;
+  onExit: () => void;
   onSignOut: () => void;
+  onViewInsights: () => void;
 }) {
-  const userId = profile.id;
-  const writingStyle = (profile.writing_style as 'sensual' | 'explicit') ?? 'sensual';
-  const genderConfig = buildGenderConfig(profile.gender, profile.attracted_to);
-
-  // --- story state ---
-  const [storyId, setStoryId] = useState<string | null>(null);
   const [segmentNumber, setSegmentNumber] = useState(0);
   const [segments, setSegments] = useState<string[]>([]); // all body texts shown
   const [choices, setChoices] = useState<Choice[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  // TEMP: until real navigation exists, toggle the Insights screen.
-  const [showInsights, setShowInsights] = useState(false);
 
   // --- edge function call ---
   async function callEdge(payload: Record<string, unknown>) {
@@ -98,63 +67,42 @@ export default function StoryReaderScreen({
     return json as { segment_id: string; body_text: string; choices: Choice[] };
   }
 
-  // --- start a new story ---
-  async function startNewStory() {
-    setError('');
-    setLoading(true);
-    try {
-      // reset story display
-      setSegments([]);
-      setChoices([]);
-      setSegmentNumber(0);
-
-      const { data: story, error: storyError } = await supabase
-        .from('stories')
-        .insert({
-          user_id: userId,
-          setting: SETTING,
-          writing_style: writingStyle,
-          gender_config: genderConfig,
-          status: 'active',
-        })
-        .select()
-        .single();
-
-      if (storyError || !story) {
-        throw new Error('Insert story failed: ' + (storyError?.message ?? 'no row'));
+  // --- generate the opening segment on load ---
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    (async () => {
+      setError('');
+      setLoading(true);
+      try {
+        const result = await callEdge({
+          user_id: story.userId,
+          story_id: story.storyId,
+          setting: story.setting,
+          custom_prompt: story.customPrompt,
+          writing_style: story.writingStyle,
+          gender_config: story.genderConfig,
+          chosen_option_text: null,
+          chosen_choice_id: null,
+          previous_segments_summary: '',
+          segment_number: 1,
+        });
+        setSegments([result.body_text]);
+        setChoices(result.choices);
+        setSegmentNumber(1);
+      } catch (e: any) {
+        setError(String(e?.message ?? e));
+      } finally {
+        setLoading(false);
       }
-      setStoryId(story.id);
-
-      const result = await callEdge({
-        user_id: userId,
-        story_id: story.id,
-        setting: SETTING,
-        custom_prompt: null,
-        writing_style: writingStyle,
-        gender_config: genderConfig,
-        chosen_option_text: null,
-        chosen_choice_id: null,
-        previous_segments_summary: '',
-        segment_number: 1,
-      });
-
-      setSegments([result.body_text]);
-      setChoices(result.choices);
-      setSegmentNumber(1);
-    } catch (e: any) {
-      setError(String(e?.message ?? e));
-    } finally {
-      setLoading(false);
-    }
-  }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- pick a choice -> generate the next segment ---
   async function chooseOption(choice: Choice) {
     setError('');
-    if (!storyId) {
-      setError('No active story.');
-      return;
-    }
     setLoading(true);
     try {
       const nextNumber = segmentNumber + 1;
@@ -162,12 +110,12 @@ export default function StoryReaderScreen({
       const summary = segments.slice(-3).join('\n\n');
 
       const result = await callEdge({
-        user_id: userId,
-        story_id: storyId,
-        setting: SETTING,
-        custom_prompt: null,
-        writing_style: writingStyle,
-        gender_config: genderConfig,
+        user_id: story.userId,
+        story_id: story.storyId,
+        setting: story.setting,
+        custom_prompt: story.customPrompt,
+        writing_style: story.writingStyle,
+        gender_config: story.genderConfig,
         chosen_option_text: choice.option_text,
         chosen_choice_id: choice.id,
         previous_segments_summary: summary,
@@ -185,30 +133,24 @@ export default function StoryReaderScreen({
   }
 
   // --- render ---
-  if (showInsights) {
-    return <InsightsScreen onBack={() => setShowInsights(false)} />;
-  }
-
   return (
     <ScreenBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.column}>
-          {/* top bar: sign out + temp insights link */}
+          {/* top bar: leave story + insights + sign out */}
           <View style={styles.topBar}>
-            <Text style={styles.topLink} onPress={onSignOut}>
-              sign out
+            <Text style={styles.topLink} onPress={onExit}>
+              ‹ new story
             </Text>
-            <Text style={styles.topLink} onPress={() => setShowInsights(true)}>
-              view insights ›
-            </Text>
-          </View>
-
-          {/* Start story */}
-          {segments.length === 0 && !loading ? (
-            <View style={styles.startWrap}>
-              <PrimaryButton title="Start New Story" onPress={startNewStory} />
+            <View style={styles.topRight}>
+              <Text style={styles.topLink} onPress={onViewInsights}>
+                insights
+              </Text>
+              <Text style={styles.topLink} onPress={onSignOut}>
+                sign out
+              </Text>
             </View>
-          ) : null}
+          </View>
 
           {/* Errors */}
           {error ? (
@@ -271,16 +213,17 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
+  },
+  topRight: {
+    flexDirection: 'row',
+    gap: 16,
   },
   topLink: {
     color: theme.colors.tealAccent,
     fontSize: 13,
     letterSpacing: 1,
-  },
-
-  startWrap: {
-    marginVertical: 24,
   },
 
   errorBox: {
