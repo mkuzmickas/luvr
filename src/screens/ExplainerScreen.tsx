@@ -8,7 +8,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import PrimaryButton from '@/components/PrimaryButton';
 import RadarChart from '@/components/RadarChart';
 import ScreenBackground from '@/components/ScreenBackground';
-import { theme } from '@/lib/theme';
+import { layout, theme } from '@/lib/theme';
 
 const DIMENSIONS = [
   {
@@ -79,7 +79,12 @@ export default function ExplainerScreen({ onClose }: { onClose: () => void }) {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { alignItems: 'center', paddingVertical: 24 },
-  column: { width: '100%', maxWidth: 640, paddingHorizontal: 24 },
+  column: {
+    width: '100%',
+    maxWidth: layout.maxContentWidth,
+    alignSelf: 'center',
+    paddingHorizontal: layout.screenPadding,
+  },
 
   close: {
     color: theme.colors.tealAccent,
@@ -88,7 +93,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: 'CormorantGaramond_600SemiBold',
-    fontSize: 36,
+    fontSize: 34,
     color: theme.colors.primaryText,
     marginBottom: 16,
   },

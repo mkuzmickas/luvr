@@ -21,7 +21,7 @@ import PrimaryButton from '@/components/PrimaryButton';
 import ScreenBackground from '@/components/ScreenBackground';
 import { DEFAULT_WRITING_STYLE } from '@/lib/story';
 import { supabase } from '@/lib/supabaseClient';
-import { theme } from '@/lib/theme';
+import { layout, theme } from '@/lib/theme';
 
 const TOTAL_STEPS = 4;
 
@@ -307,9 +307,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
-    maxWidth: 560,
+    maxWidth: layout.maxContentWidth,
     alignSelf: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: layout.screenPadding,
     paddingTop: 24,
     paddingBottom: 28,
   },

@@ -22,7 +22,7 @@ import {
 } from '@/lib/insights';
 import { isInsightsLocked } from '@/lib/paywall';
 import { supabase } from '@/lib/supabaseClient';
-import { theme } from '@/lib/theme';
+import { layout, theme } from '@/lib/theme';
 
 // Placeholder for the future paywall — no real payment logic yet.
 function showComingSoon() {
@@ -273,7 +273,12 @@ function Section({
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { alignItems: 'center', paddingVertical: 32 },
-  column: { width: '100%', maxWidth: 700, paddingHorizontal: 24 },
+  column: {
+    width: '100%',
+    maxWidth: layout.maxContentWidth,
+    alignSelf: 'center',
+    paddingHorizontal: layout.screenPadding,
+  },
 
   back: {
     color: theme.colors.tealAccent,

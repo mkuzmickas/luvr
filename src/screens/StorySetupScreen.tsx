@@ -19,7 +19,7 @@ import PrimaryButton from '@/components/PrimaryButton';
 import ScreenBackground from '@/components/ScreenBackground';
 import { buildGenderConfig, DEFAULT_WRITING_STYLE } from '@/lib/story';
 import { supabase } from '@/lib/supabaseClient';
-import { theme } from '@/lib/theme';
+import { layout, theme } from '@/lib/theme';
 import { Profile, StoryParams } from '@/lib/types';
 
 const SETTINGS = [
@@ -168,7 +168,12 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { alignItems: 'center', paddingVertical: 24 },
-  column: { width: '100%', maxWidth: 700, paddingHorizontal: 24 },
+  column: {
+    width: '100%',
+    maxWidth: layout.maxContentWidth,
+    alignSelf: 'center',
+    paddingHorizontal: layout.screenPadding,
+  },
 
   heading: {
     fontFamily: 'CormorantGaramond_600SemiBold',

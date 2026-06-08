@@ -8,7 +8,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import LoadingCards from '@/components/LoadingCards';
 import PrimaryButton from '@/components/PrimaryButton';
 import ScreenBackground from '@/components/ScreenBackground';
-import { theme } from '@/lib/theme';
+import { layout, theme } from '@/lib/theme';
 import { StoryParams } from '@/lib/types';
 
 const EDGE_FUNCTION_URL =
@@ -194,8 +194,9 @@ const styles = StyleSheet.create({
   },
   column: {
     width: '100%',
-    maxWidth: 700,
-    paddingHorizontal: 24,
+    maxWidth: layout.maxContentWidth,
+    alignSelf: 'center',
+    paddingHorizontal: layout.screenPadding,
   },
 
   topBar: {

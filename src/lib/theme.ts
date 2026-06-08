@@ -25,3 +25,15 @@ export const theme = {
 
 export type Theme = typeof theme;
 export default theme;
+
+/**
+ * Shared layout tokens for a consistent, mobile-first centered column.
+ * On a phone the content fills the width with comfortable padding; on wider web
+ * screens it stays in a centered readable column instead of stretching.
+ */
+export const layout = {
+  /** Max width of the centered content column. */
+  maxContentWidth: 560,
+  /** Horizontal padding inside the column. */
+  screenPadding: 24,
+} as const;

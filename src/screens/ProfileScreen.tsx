@@ -11,7 +11,7 @@ import PrimaryButton from '@/components/PrimaryButton';
 import ScreenBackground from '@/components/ScreenBackground';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabaseClient';
-import { theme } from '@/lib/theme';
+import { layout, theme } from '@/lib/theme';
 
 export default function ProfileScreen() {
   const { profile, email, signOut } = useAuth();
@@ -92,11 +92,16 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { alignItems: 'center', paddingVertical: 32 },
-  column: { width: '100%', maxWidth: 640, paddingHorizontal: 24 },
+  column: {
+    width: '100%',
+    maxWidth: layout.maxContentWidth,
+    alignSelf: 'center',
+    paddingHorizontal: layout.screenPadding,
+  },
 
   name: {
     fontFamily: 'CormorantGaramond_600SemiBold',
-    fontSize: 36,
+    fontSize: 34,
     color: theme.colors.primaryText,
   },
   email: {
