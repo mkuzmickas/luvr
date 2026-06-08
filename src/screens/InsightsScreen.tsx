@@ -10,6 +10,16 @@ import BarChart from '@/components/BarChart';
 import PrimaryButton from '@/components/PrimaryButton';
 import RadarChart from '@/components/RadarChart';
 import ScreenBackground from '@/components/ScreenBackground';
+import ShareSheet from '@/components/ShareSheet';
+import {
+  ATTACHMENT,
+  DESCRIPTIONS,
+  EROTIC,
+  INTIMACY,
+  MAX_SCORE,
+  primaryIndex,
+  SHORT_DESCRIPTORS,
+} from '@/lib/insights';
 import { isInsightsLocked } from '@/lib/paywall';
 import { supabase } from '@/lib/supabaseClient';
 import { theme } from '@/lib/theme';
@@ -25,67 +35,7 @@ function showComingSoon() {
   }
 }
 
-const MAX_SCORE = 10;
-
-// Dimension definitions: db column -> user-facing label, in order.
-const EROTIC = {
-  columns: ['energetic', 'sensual', 'sexual', 'kinky', 'shapeshifter'],
-  labels: ['The Spark', 'The Savorer', 'The Flame', 'The Explorer', 'The Shifter'],
-};
-const ATTACHMENT = {
-  columns: ['secure', 'anxious', 'avoidant', 'fearful'],
-  labels: ['Secure', 'Anxious', 'Avoidant', 'Fearful Avoidant'],
-};
-const INTIMACY = {
-  // "time" is a reserved word in SQL but is safe to read as a JSON key here.
-  columns: ['words', 'acts', 'gifts', 'time', 'touch'],
-  labels: ['Words', 'Acts', 'Gifts', 'Time', 'Touch'],
-};
-
-// Flattering interpretive text for every possible primary type.
-const DESCRIPTIONS: Record<string, string> = {
-  // Erotic Signature
-  'The Spark':
-    'You crave anticipation — the electric charge of tension and energy that builds before a single touch. That live-wire current is where your desire truly comes alive.',
-  'The Savorer':
-    'You are drawn to the senses, the atmosphere, and the slow, luxurious build. For you, pleasure is something to be savored and stretched out, never rushed.',
-  'The Flame':
-    'You are direct and physically present, readily turned on by the act itself. Your desire is honest, immediate, and gloriously uncomplicated.',
-  'The Explorer':
-    'You are pulled toward intensity, power, and the thrill of the edge. You are unafraid to chase the experiences most people only imagine.',
-  'The Shifter':
-    'You crave variety and move fluidly between all the different energies. Your eroticism is expansive, adaptive, and impossible to put in a single box.',
-  // Attachment Style
-  Secure:
-    'You bond with trust, confidence, and an easy comfort in closeness. Connection feels like a safe harbor that you give and receive freely.',
-  Anxious:
-    'You bond with deep longing and a desire for reassurance and closeness. Your capacity to love intensely and wholeheartedly is a profound gift.',
-  Avoidant:
-    'You value independence, space, and self-reliance within connection. Your steadiness and quiet autonomy are magnetic in their own right.',
-  'Fearful Avoidant':
-    'You move between craving closeness and needing distance. That duality gives you a rich, deeply felt, and complex emotional world.',
-  // Intimacy Language
-  Words:
-    'You give and receive love through affirmation and spoken desire. The right words land on you with the force of a touch.',
-  Acts:
-    'You express care through gestures, effort, and showing up. For you, love is something you do, not just something you say.',
-  Gifts:
-    'You connect through meaningful tokens and the art of giving. A single thoughtful object can carry your whole heart.',
-  Time:
-    'You bond through undivided presence and attention. Nothing says love to you like someone choosing simply to be with you.',
-  Touch:
-    'You connect most deeply through physical closeness. Skin to skin is where you feel most seen and understood.',
-};
-
 type Row = Record<string, number> | null;
-
-function primaryIndex(values: number[]): number {
-  let best = 0;
-  for (let i = 1; i < values.length; i++) {
-    if (values[i] > values[best]) best = i;
-  }
-  return best;
-}
 
 export default function InsightsScreen() {
   const [loading, setLoading] = useState(true);
@@ -94,6 +44,7 @@ export default function InsightsScreen() {
   const [attachment, setAttachment] = useState<Row>(null);
   const [lovelanguage, setLovelanguage] = useState<Row>(null);
   const [isPremium, setIsPremium] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -172,11 +123,47 @@ export default function InsightsScreen() {
   // past the free choice limit. (No payment logic — only the gating structure.)
   const locked = isInsightsLocked(isPremium, sampleCount);
 
+  // The three primary types — the only thing the share card ever reveals.
+  const eroticPrimary = EROTIC.labels[primaryIndex(eroticValues)];
+  const attachmentPrimary = ATTACHMENT.labels[primaryIndex(attachmentValues)];
+  const intimacyPrimary = INTIMACY.labels[primaryIndex(intimacyValues)];
+  const shareEntries = [
+    {
+      category: EROTIC.key,
+      name: eroticPrimary,
+      descriptor: SHORT_DESCRIPTORS[eroticPrimary],
+    },
+    {
+      category: ATTACHMENT.key,
+      name: attachmentPrimary,
+      descriptor: SHORT_DESCRIPTORS[attachmentPrimary],
+    },
+    {
+      category: INTIMACY.key,
+      name: intimacyPrimary,
+      descriptor: SHORT_DESCRIPTORS[intimacyPrimary],
+    },
+  ];
+
+  // Sharing is only offered once the user actually has a profile, and only ever
+  // opens on an explicit tap — nothing is generated or exposed otherwise.
+  const canShare = !loading && !error && !isEmpty;
+
   return (
     <ScreenBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.column}>
           <Text style={styles.title}>Your Profile</Text>
+
+          {canShare ? (
+            <View style={styles.shareWrap}>
+              <PrimaryButton
+                title="Share your profile"
+                variant="outline"
+                onPress={() => setShowShare(true)}
+              />
+            </View>
+          ) : null}
 
           {loading ? (
             <Text style={styles.muted}>Reading your profile...</Text>
@@ -256,6 +243,10 @@ export default function InsightsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {showShare ? (
+        <ShareSheet entries={shareEntries} onClose={() => setShowShare(false)} />
+      ) : null}
     </ScreenBackground>
   );
 }
@@ -298,6 +289,9 @@ const styles = StyleSheet.create({
   muted: {
     color: theme.colors.secondaryText,
     fontSize: 14,
+  },
+  shareWrap: {
+    marginBottom: 20,
   },
 
   errorBox: {
