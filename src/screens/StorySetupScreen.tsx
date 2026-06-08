@@ -39,13 +39,9 @@ const SETTINGS = [
 export default function StorySetupScreen({
   profile,
   onBegin,
-  onSignOut,
-  onViewInsights,
 }: {
   profile: Profile;
   onBegin: (story: StoryParams) => void;
-  onSignOut: () => void;
-  onViewInsights: () => void;
 }) {
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const [customText, setCustomText] = useState('');
@@ -119,16 +115,6 @@ export default function StorySetupScreen({
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.column}>
-            {/* top bar */}
-            <View style={styles.topBar}>
-              <Text style={styles.topLink} onPress={onSignOut}>
-                sign out
-              </Text>
-              <Text style={styles.topLink} onPress={onViewInsights}>
-                view insights ›
-              </Text>
-            </View>
-
             <Text style={styles.heading}>Begin your story</Text>
 
             {/* preset grid */}
@@ -183,17 +169,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { alignItems: 'center', paddingVertical: 24 },
   column: { width: '100%', maxWidth: 700, paddingHorizontal: 24 },
-
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  topLink: {
-    color: theme.colors.tealAccent,
-    fontSize: 13,
-    letterSpacing: 1,
-  },
 
   heading: {
     fontFamily: 'CormorantGaramond_600SemiBold',

@@ -7,6 +7,7 @@ export type Profile = {
   attracted_to: string | null;
   writing_style: string | null;
   onboarding_complete: boolean;
+  is_premium: boolean;
 };
 
 // An already-created story plus the parameters needed to generate its segments.

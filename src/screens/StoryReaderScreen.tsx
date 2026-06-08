@@ -23,13 +23,9 @@ type Choice = {
 export default function StoryReaderScreen({
   story,
   onExit,
-  onSignOut,
-  onViewInsights,
 }: {
   story: StoryParams;
   onExit: () => void;
-  onSignOut: () => void;
-  onViewInsights: () => void;
 }) {
   const [segmentNumber, setSegmentNumber] = useState(0);
   const [segments, setSegments] = useState<string[]>([]); // all body texts shown
@@ -137,19 +133,11 @@ export default function StoryReaderScreen({
     <ScreenBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.column}>
-          {/* top bar: leave story + insights + sign out */}
+          {/* top bar: leave the current story and return to setup */}
           <View style={styles.topBar}>
             <Text style={styles.topLink} onPress={onExit}>
               ‹ new story
             </Text>
-            <View style={styles.topRight}>
-              <Text style={styles.topLink} onPress={onViewInsights}>
-                insights
-              </Text>
-              <Text style={styles.topLink} onPress={onSignOut}>
-                sign out
-              </Text>
-            </View>
           </View>
 
           {/* Errors */}

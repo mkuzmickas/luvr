@@ -4,13 +4,26 @@
 // lovelanguage_scores. Dark Ocean Teal aesthetic + Cormorant Garamond.
 
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import BarChart from '@/components/BarChart';
+import PrimaryButton from '@/components/PrimaryButton';
 import RadarChart from '@/components/RadarChart';
 import ScreenBackground from '@/components/ScreenBackground';
+import { isInsightsLocked } from '@/lib/paywall';
 import { supabase } from '@/lib/supabaseClient';
 import { theme } from '@/lib/theme';
+
+// Placeholder for the future paywall — no real payment logic yet.
+function showComingSoon() {
+  const message = 'Unlocking full access is coming soon.';
+  if (Platform.OS === 'web') {
+    // Alert is not implemented on react-native-web.
+    window.alert(message);
+  } else {
+    Alert.alert('Coming soon', message);
+  }
+}
 
 const MAX_SCORE = 10;
 
@@ -74,12 +87,13 @@ function primaryIndex(values: number[]): number {
   return best;
 }
 
-export default function InsightsScreen({ onBack }: { onBack?: () => void }) {
+export default function InsightsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [blueprint, setBlueprint] = useState<Row>(null);
   const [attachment, setAttachment] = useState<Row>(null);
   const [lovelanguage, setLovelanguage] = useState<Row>(null);
+  const [isPremium, setIsPremium] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -93,7 +107,7 @@ export default function InsightsScreen({ onBack }: { onBack?: () => void }) {
           throw new Error('Not signed in. Sign in on the story screen first.');
         }
 
-        const [bp, at, ll] = await Promise.all([
+        const [bp, at, ll, pr] = await Promise.all([
           supabase
             .from('blueprint_scores')
             .select('energetic,sensual,sexual,kinky,shapeshifter,sample_count')
@@ -109,6 +123,11 @@ export default function InsightsScreen({ onBack }: { onBack?: () => void }) {
             .select('words,acts,gifts,time,touch,sample_count')
             .eq('user_id', userId)
             .maybeSingle(),
+          supabase
+            .from('profiles')
+            .select('is_premium')
+            .eq('id', userId)
+            .maybeSingle(),
         ]);
 
         if (bp.error) throw new Error('blueprint: ' + bp.error.message);
@@ -119,6 +138,7 @@ export default function InsightsScreen({ onBack }: { onBack?: () => void }) {
         setBlueprint(bp.data as Row);
         setAttachment(at.data as Row);
         setLovelanguage(ll.data as Row);
+        setIsPremium(Boolean((pr.data as { is_premium?: boolean } | null)?.is_premium));
       } catch (e: any) {
         if (active) setError(String(e?.message ?? e));
       } finally {
@@ -148,17 +168,14 @@ export default function InsightsScreen({ onBack }: { onBack?: () => void }) {
       (v) => v === 0,
     );
   const isEmpty = sampleCount === 0 || allZero;
+  // Paywall gating: premium always sees full insights; non-premium locks once
+  // past the free choice limit. (No payment logic — only the gating structure.)
+  const locked = isInsightsLocked(isPremium, sampleCount);
 
   return (
     <ScreenBackground>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.column}>
-          {onBack ? (
-            <Text style={styles.back} onPress={onBack}>
-              ‹ back to story
-            </Text>
-          ) : null}
-
           <Text style={styles.title}>Your Profile</Text>
 
           {loading ? (
@@ -176,6 +193,27 @@ export default function InsightsScreen({ onBack }: { onBack?: () => void }) {
                 signature, your attachment style, and your intimacy language.
                 Come back here to discover what your desires reveal.
               </Text>
+            </View>
+          ) : locked ? (
+            <View style={styles.lockedCard}>
+              {/* Decorative, faded sample chart behind the lock for visual interest. */}
+              <View style={styles.lockedChart} pointerEvents="none">
+                <RadarChart
+                  values={[7, 5, 8, 4, 6]}
+                  labels={['', '', '', '', '']}
+                  max={MAX_SCORE}
+                  size={220}
+                />
+              </View>
+              <Text style={styles.lockedTitle}>Your profile is ready</Text>
+              <Text style={styles.lockedBody}>
+                You have made {sampleCount} choices, and your erotic signature,
+                attachment style, and intimacy language have taken shape. Unlock
+                full access to see your complete profile.
+              </Text>
+              <View style={styles.lockedButton}>
+                <PrimaryButton title="Unlock" onPress={showComingSoon} />
+              </View>
             </View>
           ) : (
             <>
@@ -288,6 +326,40 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 28,
     color: theme.colors.primaryText,
+  },
+
+  lockedCard: {
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 18,
+    padding: 24,
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  lockedChart: {
+    opacity: 0.18,
+    marginBottom: -160,
+    marginTop: 8,
+  },
+  lockedTitle: {
+    fontFamily: 'CormorantGaramond_600SemiBold',
+    fontSize: 26,
+    color: theme.colors.brightTeal,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  lockedBody: {
+    fontFamily: 'CormorantGaramond_400Regular',
+    fontSize: 18,
+    lineHeight: 27,
+    color: theme.colors.primaryText,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  lockedButton: {
+    alignSelf: 'stretch',
   },
 
   section: {

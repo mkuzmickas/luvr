@@ -15,6 +15,8 @@ import {
   View,
 } from 'react-native';
 
+import { router } from 'expo-router';
+
 import PrimaryButton from '@/components/PrimaryButton';
 import ScreenBackground from '@/components/ScreenBackground';
 import { DEFAULT_WRITING_STYLE } from '@/lib/story';
@@ -195,6 +197,9 @@ export default function OnboardingScreen({
                       : 'Need an account? Create one'}
                   </Text>
                 </View>
+                <Text style={styles.whatIsLink} onPress={() => router.push('/explainer')}>
+                  What is LUVR
+                </Text>
               </View>
             ) : step === 1 ? (
               <View style={styles.block}>
@@ -373,6 +378,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     marginTop: 4,
+  },
+  whatIsLink: {
+    color: theme.colors.secondaryText,
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 20,
   },
   error: {
     color: 'red',
